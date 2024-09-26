@@ -1,0 +1,10 @@
+[package]
+name = "quartz"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+homepage = "https://github.com/alexsnaps/quart-rs"
+repository = "https://github.com/alexsnaps/quart-rs"
+description = "Port of the original Java Quartz Scheduler to Rust"
+
+[dependencies]
