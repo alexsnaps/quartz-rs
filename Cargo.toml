@@ -4,8 +4,8 @@ version = "0.0.0"
 edition = "2021"
 authors = ["Alex Snaps <alex@wcgw.dev>"]
 license = "Apache-2.0"
-homepage = "https://github.com/alexsnaps/quart-rs"
-repository = "https://github.com/alexsnaps/quart-rs"
+homepage = "https://github.com/alexsnaps/quartz-rs"
+repository = "https://github.com/alexsnaps/quartz-rs"
 description = "Port of the original Java Quartz Scheduler to Rust"
 
 [dependencies]
