@@ -34,11 +34,16 @@ impl SchedulerThread {
         .spawn(move || {
           while !halted.load(Acquire) {
             let next_fire = store.next_fire().unwrap_or(DEFAULT_WAIT_NO_WORK);
-            thread::sleep(next_fire);
+            if !next_fire.is_zero() {
+              thread::sleep(next_fire);
+            }
             if let Some(job) = store.next_job() {
               #[allow(clippy::unit_arg)]
               // todo make this useful!
-              workers.submit(job.into()).unwrap();
+              if let Err(_task) = workers.submit(job.into()) {
+                // no worker available!
+                // reschedule task
+              }
             }
           }
         })

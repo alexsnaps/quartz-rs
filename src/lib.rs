@@ -128,7 +128,7 @@ impl JobStore {
   }
 
   fn next_job(&self) -> Option<JobDetail> {
-    None
+    Some(JobDetail::with_identity("foo", "foobar", || {}))
   }
 
   fn signal(&self) {
@@ -136,7 +136,7 @@ impl JobStore {
   }
 
   fn next_fire(&self) -> Option<Duration> {
-    Some(Duration::from_millis(1))
+    Some(Duration::ZERO)
   }
 }
 
