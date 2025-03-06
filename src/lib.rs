@@ -74,7 +74,7 @@ impl JobDetail {
 
 impl From<JobDetail> for () {
   fn from(_value: JobDetail) -> Self {
-    // todo for an actual useful type
+    // FIXME: for an actual useful type
   }
 }
 

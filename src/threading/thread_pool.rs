@@ -88,7 +88,7 @@ impl<T> Drop for WorkerPool<T> {
 impl<T> Worker<T> {
   fn new() -> Self {
     Self {
-      busy: Default::default(), // todo non atomic? if only accessed from within the scheduler's lock
+      busy: Default::default(), // TODO: non atomic? if only accessed from within the scheduler's lock
       task: Default::default(),
       cvar: Default::default(),
     }
@@ -129,11 +129,11 @@ impl<T> Worker<T> {
       task = self.cvar.wait(task).unwrap();
     }
     task.take().expect("task must be available");
-    // todo delete this!
+    // FIXME: delete this!
     if cfg!(test) {
       println!("Doing work!");
       thread::sleep(Duration::from_millis(2));
-      // todo do the work
+      // FIXME: do the work
       println!("Done!");
     }
 

@@ -39,7 +39,7 @@ impl SchedulerThread {
             }
             if let Some(job) = store.next_job() {
               #[allow(clippy::unit_arg)]
-              // todo make this useful!
+              // TODO: make this useful!
               if let Err(_task) = workers.submit(job.into()) {
                 // no worker available!
                 // reschedule task
