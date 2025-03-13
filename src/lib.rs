@@ -13,6 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+//! # Quartz Scheduler
+//!
+//! This is a port of the original [Quartz Scheduler](https://www.quartz-scheduler.org/) written in
+//! Java. Quartz can be integrated within pretty much any Rust application that targets a
+//! multithreaded architecture.
+//!
+//! ## Highlevel architecture
+//!
+//! A [`Scheduler`] runs off a main scheduler thread that will dispatch [`Job`]s for execution to workers
+//! from a thread pool, which is configurable in size. The dispatch occurs based off a [`Trigger`]
+//! defining the actual schedule for a [`Job`] to fire.
+
 mod threading;
 
 use crate::threading::SchedulerThread;
@@ -21,12 +34,15 @@ use std::num::NonZeroUsize;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime};
 
+/// Entry point in Quartz, which also controls the lifecycle of the necessary resources.
 pub struct Scheduler {
   job_store: Arc<JobStore>,
   scheduler_thread: SchedulerThread,
 }
 
 impl Scheduler {
+  /// Creates a new [`Scheduler`], initializing the storage for [`Job`]s, starts the scheduler
+  /// thread and initializes the worker thread pool.
   pub fn new() -> Self {
     let job_store = Arc::new(JobStore::new());
     let scheduler_thread = SchedulerThread::new(NonZeroUsize::new(2).unwrap(), Arc::clone(&job_store));
