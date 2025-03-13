@@ -37,7 +37,7 @@ impl Scheduler {
     }
   }
 
-  pub fn schedule_job(&mut self, _job: JobDetail, _trigger: Trigger) {
+  pub fn schedule_job(&mut self, _job: Job, _trigger: Trigger) {
     self.job_store.signal();
   }
 
@@ -52,13 +52,13 @@ impl Default for Scheduler {
   }
 }
 
-pub struct JobDetail {
+pub struct Job {
   id: String,
   group: String,
   target_fn: fn(),
 }
 
-impl JobDetail {
+impl Job {
   pub fn id(&self) -> &str {
     &self.id
   }
@@ -72,13 +72,13 @@ impl JobDetail {
   }
 }
 
-impl From<JobDetail> for () {
-  fn from(_value: JobDetail) -> Self {
+impl From<Job> for () {
+  fn from(_value: Job) -> Self {
     // FIXME: for an actual useful type
   }
 }
 
-impl JobDetail {
+impl Job {
   pub fn with_identity<S: Into<String>>(id: S, group: S, target: fn()) -> Self {
     Self {
       id: id.into(),
@@ -127,8 +127,8 @@ impl JobStore {
     }
   }
 
-  fn next_job(&self) -> Option<JobDetail> {
-    Some(JobDetail::with_identity("foo", "foobar", || {}))
+  fn next_job(&self) -> Option<Job> {
+    Some(Job::with_identity("foo", "foobar", || {}))
   }
 
   fn signal(&self) {
@@ -148,7 +148,7 @@ impl Default for JobStore {
 
 #[cfg(test)]
 mod tests {
-  use crate::{JobDetail, Scheduler, Trigger};
+  use crate::{Job, Scheduler, Trigger};
   use std::thread;
   use std::time::{Duration, SystemTime};
 
@@ -165,7 +165,7 @@ mod tests {
 
     // define the job and tie it to our HelloJob class
     let job_id = "job1";
-    let job = JobDetail::with_identity(job_id, "group1", || println!("Hello world!"));
+    let job = Job::with_identity(job_id, "group1", || println!("Hello world!"));
 
     // Trigger the job to run on the next round minute
     let trigger = Trigger::with_identity("trigger1", "group1").start_at(run_time);
