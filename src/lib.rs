@@ -53,10 +53,12 @@ impl Scheduler {
     }
   }
 
+  /// Schedule a [`Job`], triggered according to the schedule described by the [`Trigger`]
   pub fn schedule_job(&mut self, _job: Job, _trigger: Trigger) {
     self.job_store.signal();
   }
 
+  /// Shuts the [`Scheduler`] down, letting any [`Job`] currently executing run to the end
   pub fn shutdown(self) {
     self.scheduler_thread.shutdown();
   }
@@ -68,6 +70,7 @@ impl Default for Scheduler {
   }
 }
 
+/// Describes "what" is to be executed
 pub struct Job {
   id: String,
   group: String,
@@ -75,14 +78,27 @@ pub struct Job {
 }
 
 impl Job {
+  /// Creates a new [`Job`] that will execute the `target` and can be referenced by [`id`] and
+  /// [`target`], once [scheduled](Scheduler::schedule_job())
+  pub fn with_identity<S: Into<String>>(id: S, group: S, target: fn()) -> Self {
+    Self {
+      id: id.into(),
+      group: group.into(),
+      target_fn: target,
+    }
+  }
+
+  /// Accessor to the [`Job`]'s identity
   pub fn id(&self) -> &str {
     &self.id
   }
 
+  /// Accessor to the [`Job`]'s group
   pub fn group(&self) -> &str {
     &self.group
   }
 
+  /// Execute the [`Job`]'s target
   pub fn execute(&self) {
     (self.target_fn)();
   }
@@ -94,16 +110,8 @@ impl From<Job> for () {
   }
 }
 
-impl Job {
-  pub fn with_identity<S: Into<String>>(id: S, group: S, target: fn()) -> Self {
-    Self {
-      id: id.into(),
-      group: group.into(),
-      target_fn: target,
-    }
-  }
-}
-
+/// Describes the schedule to use when [scheduling](Scheduler::schedule_job()) [`Job`]s with a
+/// [`Scheduler`]
 pub struct Trigger {
   id: String,
   group: String,
@@ -112,6 +120,8 @@ pub struct Trigger {
 }
 
 impl Trigger {
+  /// Creates a new [`Trigger`] that describes a schedule and can be referenced by [`id`] and
+  /// [`target`], once used to [schedule](Scheduler::schedule_job()) a [`Job`]
   pub fn with_identity<S: Into<String>>(id: S, group: S) -> Self {
     Self {
       id: id.into(),
@@ -120,6 +130,7 @@ impl Trigger {
     }
   }
 
+  /// Sets the `start_time` at which the schedule the [`Trigger`] is to start
   pub fn start_at(self, start_time: SystemTime) -> Self {
     Self {
       id: self.id,
