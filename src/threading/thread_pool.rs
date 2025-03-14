@@ -4,7 +4,6 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::Duration;
 
 #[derive(Debug)]
 pub(super) struct WorkerPool<T> {
@@ -129,13 +128,6 @@ impl<T> Worker<T> {
       task = self.cvar.wait(task).unwrap();
     }
     task.take().expect("task must be available");
-    // FIXME: delete this!
-    if cfg!(test) {
-      println!("Doing work!");
-      thread::sleep(Duration::from_millis(2));
-      // FIXME: do the work
-      println!("Done!");
-    }
 
     self.busy.store(false, Ordering::Release);
   }

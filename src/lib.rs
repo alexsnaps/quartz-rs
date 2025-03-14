@@ -74,17 +74,17 @@ impl Default for Scheduler {
 pub struct Job {
   id: String,
   group: String,
-  target_fn: fn(),
+  target_fn: Box<dyn Fn()>,
 }
 
 impl Job {
   /// Creates a new [`Job`] that will execute the `target` and can be referenced by [`id`] and
   /// [`target`], once [scheduled](Scheduler::schedule_job())
-  pub fn with_identity<S: Into<String>>(id: S, group: S, target: fn()) -> Self {
+  pub fn with_identity<S: Into<String>>(id: S, group: S, target: impl Fn() + 'static) -> Self {
     Self {
       id: id.into(),
       group: group.into(),
-      target_fn: target,
+      target_fn: Box::new(target),
     }
   }
 
@@ -179,8 +179,9 @@ mod tests {
   use std::thread;
   use std::time::{Duration, SystemTime};
 
+  const JOB_ID: &str = "job1";
+
   #[test]
-  #[ignore]
   fn test_basic_api() {
     // First we must get a reference to a scheduler
     let mut sched = Scheduler::new();
@@ -191,21 +192,20 @@ mod tests {
     println!("------- Scheduling Job  -------------------");
 
     // define the job and tie it to our HelloJob class
-    let job_id = "job1";
-    let job = Job::with_identity(job_id, "group1", || println!("Hello world!"));
+    let job = Job::with_identity(JOB_ID, "group1", || println!("Hello, world from {JOB_ID}!"));
 
     // Trigger the job to run on the next round minute
     let trigger = Trigger::with_identity("trigger1", "group1").start_at(run_time);
 
     // Tell quartz to schedule the job using our trigger
     sched.schedule_job(job, trigger);
-    println!("{job_id} will run at: {run_time:?}");
+    println!("{JOB_ID} will run at: {run_time:?}");
 
     // wait long enough so that the scheduler as an opportunity to
     // run the job!
-    println!("------- Waiting 2 seconds... -------------");
+    println!("------- Waiting 1 second... -------------");
     // wait 2 seconds to show job
-    thread::sleep(Duration::from_secs(2));
+    thread::sleep(Duration::from_secs(1));
     // executing...
 
     // shut down the scheduler
