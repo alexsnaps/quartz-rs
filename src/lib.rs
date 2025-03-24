@@ -26,13 +26,15 @@
 //! from a thread pool, which is configurable in size. The dispatch occurs based off a [`Trigger`]
 //! defining the actual schedule for a [`Job`] to fire.
 
+mod job_store;
 mod threading;
 
+use job_store::JobStore;
+
 use crate::threading::SchedulerThread;
-use std::collections::BTreeSet;
 use std::num::NonZeroUsize;
-use std::sync::{Arc, Condvar, Mutex};
-use std::time::{Duration, SystemTime};
+use std::sync::Arc;
+use std::time::SystemTime;
 
 /// Entry point in Quartz, which also controls the lifecycle of the necessary resources.
 pub struct Scheduler {
@@ -74,13 +76,13 @@ impl Default for Scheduler {
 pub struct Job {
   id: String,
   group: String,
-  target_fn: Box<dyn Fn()>,
+  target_fn: Box<dyn Fn() + Send + Sync>,
 }
 
 impl Job {
   /// Creates a new [`Job`] that will execute the `target` and can be referenced by [`id`] and
   /// [`target`], once [scheduled](Scheduler::schedule_job())
-  pub fn with_identity<S: Into<String>>(id: S, group: S, target: impl Fn() + 'static) -> Self {
+  pub fn with_identity<S: Into<String>>(id: S, group: S, target: impl Fn() + Send + Sync + 'static) -> Self {
     Self {
       id: id.into(),
       group: group.into(),
@@ -110,8 +112,15 @@ impl From<Job> for () {
   }
 }
 
+impl PartialEq for Job {
+  fn eq(&self, other: &Self) -> bool {
+    self.id.eq(&other.id) && self.group.eq(&other.group)
+  }
+}
+
 /// Describes the schedule to use when [scheduling](Scheduler::schedule_job()) [`Job`]s with a
 /// [`Scheduler`]
+#[derive(Debug, PartialEq)]
 pub struct Trigger {
   id: String,
   group: String,
@@ -138,38 +147,9 @@ impl Trigger {
       start_time,
     }
   }
-}
 
-struct JobStore {
-  signal: Arc<Condvar>,
-  #[allow(dead_code)]
-  data: Arc<Mutex<BTreeSet<String>>>,
-}
-
-impl JobStore {
-  fn new() -> Self {
-    Self {
-      signal: Arc::new(Default::default()),
-      data: Arc::new(Mutex::new(Default::default())),
-    }
-  }
-
-  fn next_job(&self) -> Option<Job> {
-    Some(Job::with_identity("foo", "foobar", || {}))
-  }
-
-  fn signal(&self) {
-    self.signal.notify_one()
-  }
-
-  fn next_fire(&self) -> Option<Duration> {
-    Some(Duration::ZERO)
-  }
-}
-
-impl Default for JobStore {
-  fn default() -> Self {
-    JobStore::new()
+  pub fn next_fire(&self) -> &SystemTime {
+    &self.start_time
   }
 }
 
@@ -186,15 +166,15 @@ mod tests {
     // First we must get a reference to a scheduler
     let mut sched = Scheduler::new();
 
-    // computer a time that is a second from now
-    let run_time = SystemTime::now() + Duration::from_secs(1);
+    // computer a time that is 600 ms from now
+    let run_time = SystemTime::now() + Duration::from_millis(600);
 
     println!("------- Scheduling Job  -------------------");
 
-    // define the job and tie it to our HelloJob class
+    // define the job and tie it to a closure
     let job = Job::with_identity(JOB_ID, "group1", || println!("Hello, world from {JOB_ID}!"));
 
-    // Trigger the job to run on the next round minute
+    // Trigger the job to run
     let trigger = Trigger::with_identity("trigger1", "group1").start_at(run_time);
 
     // Tell quartz to schedule the job using our trigger
@@ -204,7 +184,7 @@ mod tests {
     // wait long enough so that the scheduler as an opportunity to
     // run the job!
     println!("------- Waiting 1 second... -------------");
-    // wait 2 seconds to show job
+    // wait 1 seconds to show job
     thread::sleep(Duration::from_secs(1));
     // executing...
 
