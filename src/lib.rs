@@ -113,12 +113,6 @@ impl Job {
   }
 }
 
-impl From<Job> for () {
-  fn from(_value: Job) -> Self {
-    // FIXME: for an actual useful type
-  }
-}
-
 impl PartialEq for Job {
   fn eq(&self, other: &Self) -> bool {
     self.id.eq(&other.id) && self.group.eq(&other.group)
