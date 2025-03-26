@@ -87,8 +87,8 @@ impl Debug for Job {
 }
 
 impl Job {
-  /// Creates a new [`Job`] that will execute the `target` and can be referenced by [`id`] and
-  /// [`target`], once [scheduled](Scheduler::schedule_job())
+  /// Creates a new [`Job`] that will execute the `target` and can be referenced by `id` and
+  /// `target`, once [scheduled](Scheduler::schedule_job())
   pub fn with_identity<S: Into<String>>(id: S, group: S, target: impl Fn() + Send + Sync + 'static) -> Self {
     Self {
       id: id.into(),
@@ -130,8 +130,8 @@ pub struct Trigger {
 }
 
 impl Trigger {
-  /// Creates a new [`Trigger`] that describes a schedule and can be referenced by [`id`] and
-  /// [`target`], once used to [schedule](Scheduler::schedule_job()) a [`Job`]
+  /// Creates a new [`Trigger`] that describes a schedule and can be referenced by `id` and
+  /// `target`, once used to [schedule](Scheduler::schedule_job()) a [`Job`]
   pub fn with_identity<S: Into<String>>(id: S, group: S) -> Self {
     Self {
       id: id.into(),
