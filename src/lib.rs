@@ -29,9 +29,10 @@
 mod job_store;
 mod threading;
 
-use job_store::JobStore;
-
+use crate::job_store::JobStore;
 use crate::threading::SchedulerThread;
+
+use std::fmt::Debug;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -56,8 +57,8 @@ impl Scheduler {
   }
 
   /// Schedule a [`Job`], triggered according to the schedule described by the [`Trigger`]
-  pub fn schedule_job(&mut self, _job: Job, _trigger: Trigger) {
-    self.job_store.signal();
+  pub fn schedule_job(&mut self, job: Job, trigger: Trigger) {
+    self.job_store.add(job, trigger);
   }
 
   /// Shuts the [`Scheduler`] down, letting any [`Job`] currently executing run to the end
@@ -77,6 +78,12 @@ pub struct Job {
   id: String,
   group: String,
   target_fn: Box<dyn Fn() + Send + Sync>,
+}
+
+impl Debug for Job {
+  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    write!(fmt, "Job {}::{}", self.group, self.id)
+  }
 }
 
 impl Job {

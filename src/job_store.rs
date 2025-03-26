@@ -17,7 +17,7 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use super::{Job, Trigger};
 
@@ -35,22 +35,38 @@ impl JobStore {
     }
   }
 
-  pub fn next_job(&self) -> Option<Job> {
-    Some(Job::with_identity("foo", "foobar", || {}))
+  pub fn next_job(&self) -> Option<Arc<Job>> {
+    self.data.lock().unwrap().pop_first().map(|details| details.job.clone())
   }
 
-  pub fn signal(&self) {
+  pub fn add(&self, job: Job, trigger: Trigger) {
+    let mut store = self.data.lock().unwrap();
+    store.insert((job, trigger).into());
     self.signal.notify_one()
   }
 
   pub fn next_fire(&self) -> Option<Duration> {
-    Some(Duration::ZERO)
+    self.data.lock().unwrap().first().map(|j| {
+      j.trigger
+        .next_fire()
+        .duration_since(SystemTime::now())
+        .unwrap_or(Duration::ZERO)
+    })
   }
 }
 
 impl Default for JobStore {
   fn default() -> Self {
     JobStore::new()
+  }
+}
+
+impl From<(Job, Trigger)> for JobDetails {
+  fn from((job, trigger): (Job, Trigger)) -> Self {
+    JobDetails {
+      trigger: trigger.into(),
+      job: job.into(),
+    }
   }
 }
 

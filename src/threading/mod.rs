@@ -1,6 +1,8 @@
 mod thread_pool;
 
-use crate::JobStore;
+use crate::threading::thread_pool::Executable;
+use crate::{Job, JobStore};
+
 use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Acquire;
@@ -14,7 +16,7 @@ const DEFAULT_WAIT_NO_WORK: Duration = Duration::from_secs(1);
 
 pub(super) struct SchedulerThread {
   halted: Arc<AtomicBool>,
-  workers: Arc<WorkerPool<()>>,
+  workers: Arc<WorkerPool<Arc<Job>>>,
   #[allow(dead_code)]
   store: Arc<JobStore>,
   handle: JoinHandle<()>,
@@ -39,10 +41,8 @@ impl SchedulerThread {
             }
             if let Some(job) = store.next_job() {
               #[allow(clippy::unit_arg)]
-              // TODO: make this useful!
-              if let Err(_task) = workers.submit(job.into()) {
-                // no worker available!
-                // reschedule task
+              if let Err(_task) = workers.submit(job) {
+                // FIXME: no worker available! reschedule task
               }
             }
           }
@@ -64,6 +64,12 @@ impl SchedulerThread {
     Arc::try_unwrap(self.workers)
       .expect("worker pool is still being used!")
       .shutdown();
+  }
+}
+
+impl Executable for Arc<Job> {
+  fn exec(&self) {
+    (self.target_fn)()
   }
 }
 

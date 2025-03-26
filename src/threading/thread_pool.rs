@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -5,8 +6,12 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
+pub trait Executable {
+  fn exec(&self);
+}
+
 #[derive(Debug)]
-pub(super) struct WorkerPool<T> {
+pub(super) struct WorkerPool<T: Debug + Executable> {
   running: Arc<AtomicBool>,
   workers: Vec<(Arc<Worker<T>>, JoinHandle<()>)>,
 }
@@ -18,7 +23,7 @@ struct Worker<T> {
   cvar: Condvar,
 }
 
-impl<T: Send + 'static> WorkerPool<T> {
+impl<T: Executable + Debug + Send + 'static> WorkerPool<T> {
   pub fn new(size: NonZeroUsize) -> Self {
     let size = size.get();
 
@@ -69,7 +74,7 @@ impl<T: Send + 'static> WorkerPool<T> {
   }
 }
 
-impl<T> Drop for WorkerPool<T> {
+impl<T: Executable + Debug> Drop for WorkerPool<T> {
   fn drop(&mut self) {
     if !self.workers.is_empty() {
       if cfg!(test) {
@@ -84,7 +89,7 @@ impl<T> Drop for WorkerPool<T> {
   }
 }
 
-impl<T> Worker<T> {
+impl<T: Executable + Debug> Worker<T> {
   fn new() -> Self {
     Self {
       busy: Default::default(), // TODO: non atomic? if only accessed from within the scheduler's lock
@@ -127,8 +132,8 @@ impl<T> Worker<T> {
       // otherwise we just started, or it's a spurious wakeup, wait...
       task = self.cvar.wait(task).unwrap();
     }
-    task.take().expect("task must be available");
-
+    let w = task.take().expect("task must be available");
+    w.exec();
     self.busy.store(false, Ordering::Release);
   }
 
@@ -140,7 +145,7 @@ impl<T> Worker<T> {
   }
 }
 
-impl<T> Default for Worker<T> {
+impl<T: Executable + Debug> Default for Worker<T> {
   fn default() -> Self {
     Self::new()
   }
@@ -150,6 +155,10 @@ impl<T> Default for Worker<T> {
 mod tests {
   use super::*;
   use std::thread;
+
+  impl Executable for () {
+    fn exec(&self) {}
+  }
 
   #[test]
   fn test_thread_pool() {
