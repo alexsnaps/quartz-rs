@@ -7,7 +7,7 @@ Port of the original [Quartz Scheduler](https://www.quartz-scheduler.org/) from
 
 All very much still work in progress... 
 
-`v0.0.z` are to be considered experimental towards the first "beta", i.e. `v0.1.0`
+`v0.0.z` are to be considered experimental towards the first "beta", i.e. `v0.1.0`.
 
 To see the roadmap ahead in details, see the [milestones on Github](https://github.com/alexsnaps/quartz-rs/milestones)
 
