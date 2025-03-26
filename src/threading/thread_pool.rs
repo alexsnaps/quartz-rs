@@ -1,13 +1,33 @@
+/*
+ * Copyright 2025 Alex Snaps
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+use std::fmt::Debug;
 use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::Duration;
+
+pub trait Executable {
+  fn exec(&self);
+}
 
 #[derive(Debug)]
-pub(super) struct WorkerPool<T> {
+pub(super) struct WorkerPool<T: Debug + Executable> {
   running: Arc<AtomicBool>,
   workers: Vec<(Arc<Worker<T>>, JoinHandle<()>)>,
 }
@@ -19,22 +39,25 @@ struct Worker<T> {
   cvar: Condvar,
 }
 
-impl<T: Send + 'static> WorkerPool<T> {
+impl<T: Executable + Debug + Send + 'static> WorkerPool<T> {
   pub fn new(size: NonZeroUsize) -> Self {
     let size = size.get();
 
     let running = Arc::new(AtomicBool::new(true));
     let mut workers = Vec::with_capacity(size);
 
-    for _ in 0..size {
+    for i in 0..size {
       let running = running.clone();
       let worker: Arc<Worker<T>> = Arc::default();
       let w = worker.clone();
-      let jh = thread::spawn(move || {
-        while running.load(Ordering::Acquire) {
-          worker.do_work();
-        }
-      });
+      let jh = thread::Builder::new()
+        .name(format!("Quartz Worker #{i}"))
+        .spawn(move || {
+          while running.load(Ordering::Acquire) {
+            worker.do_work();
+          }
+        })
+        .unwrap();
       workers.push((w, jh));
     }
 
@@ -53,6 +76,7 @@ impl<T: Send + 'static> WorkerPool<T> {
     }
   }
 
+  #[allow(dead_code)]
   pub fn available_workers(&self) -> usize {
     self.workers.iter().filter(|w| !w.0.busy()).count()
   }
@@ -66,7 +90,7 @@ impl<T: Send + 'static> WorkerPool<T> {
   }
 }
 
-impl<T> Drop for WorkerPool<T> {
+impl<T: Executable + Debug> Drop for WorkerPool<T> {
   fn drop(&mut self) {
     if !self.workers.is_empty() {
       if cfg!(test) {
@@ -81,10 +105,10 @@ impl<T> Drop for WorkerPool<T> {
   }
 }
 
-impl<T> Worker<T> {
+impl<T: Executable + Debug> Worker<T> {
   fn new() -> Self {
     Self {
-      busy: Default::default(), // todo non atomic? if only accessed from within the scheduler's lock
+      busy: Default::default(), // TODO: non atomic? if only accessed from within the scheduler's lock
       task: Default::default(),
       cvar: Default::default(),
     }
@@ -124,15 +148,8 @@ impl<T> Worker<T> {
       // otherwise we just started, or it's a spurious wakeup, wait...
       task = self.cvar.wait(task).unwrap();
     }
-    task.take().expect("task must be available");
-    // todo delete this!
-    if cfg!(test) {
-      println!("Doing work!");
-      thread::sleep(Duration::from_millis(2));
-      // todo do the work
-      println!("Done!");
-    }
-
+    let w = task.take().expect("task must be available");
+    w.exec();
     self.busy.store(false, Ordering::Release);
   }
 
@@ -144,7 +161,7 @@ impl<T> Worker<T> {
   }
 }
 
-impl<T> Default for Worker<T> {
+impl<T: Executable + Debug> Default for Worker<T> {
   fn default() -> Self {
     Self::new()
   }
@@ -154,6 +171,10 @@ impl<T> Default for Worker<T> {
 mod tests {
   use super::*;
   use std::thread;
+
+  impl Executable for () {
+    fn exec(&self) {}
+  }
 
   #[test]
   fn test_thread_pool() {

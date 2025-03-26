@@ -13,66 +13,57 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#[allow(dead_code)]
+
+//! # Quartz Scheduler
+//!
+//! This is a port of the original [Quartz Scheduler](https://www.quartz-scheduler.org/) written in
+//! Java. Quartz can be integrated within pretty much any Rust application that targets a
+//! multithreaded architecture.
+//!
+//! ## Highlevel architecture
+//!
+//! A [`Scheduler`] runs off a main scheduler thread that will dispatch [`Job`]s for execution to workers
+//! from a thread pool, which is configurable in size. The dispatch occurs based off a [`Trigger`]
+//! defining the actual schedule for a [`Job`] to fire.
+
+mod job_store;
 mod threading;
 
-use std::collections::BTreeSet;
-use std::mem::ManuallyDrop;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
-use std::thread;
-use std::thread::JoinHandle;
-use std::time::{Duration, SystemTime};
+use crate::job_store::JobStore;
+use crate::threading::SchedulerThread;
 
+use std::fmt::Debug;
+use std::num::NonZeroUsize;
+use std::sync::Arc;
+use std::time::SystemTime;
+
+/// Entry point in Quartz, which also controls the lifecycle of the necessary resources.
 pub struct Scheduler {
-  running: Arc<AtomicBool>,
   job_store: Arc<JobStore>,
-  scheduler_thread: ManuallyDrop<JoinHandle<()>>,
+  scheduler_thread: SchedulerThread,
 }
 
 impl Scheduler {
+  /// Creates a new [`Scheduler`], initializing the storage for [`Job`]s, starts the scheduler
+  /// thread and initializes the worker thread pool.
   pub fn new() -> Self {
-    let running = Arc::new(AtomicBool::new(true));
-    let r = Arc::clone(&running);
-
     let job_store = Arc::new(JobStore::new());
-    let store = Arc::clone(&job_store);
-
-    let handle = thread::Builder::new()
-      .name("Quartz Scheduler Thread".to_string())
-      .spawn(move || {
-        while r.load(Ordering::SeqCst) {
-          if let Some(job) = store.next_job() {
-            job.execute();
-          }
-        }
-      })
-      .expect("");
+    let scheduler_thread = SchedulerThread::new(NonZeroUsize::new(2).unwrap(), Arc::clone(&job_store));
 
     Self {
-      running,
       job_store,
-      scheduler_thread: ManuallyDrop::new(handle),
+      scheduler_thread,
     }
   }
 
-  pub fn schedule_job(&mut self, _job: JobDetail, _trigger: Trigger) {
-    self.job_store.signal();
+  /// Schedule a [`Job`], triggered according to the schedule described by the [`Trigger`]
+  pub fn schedule_job(&mut self, job: Job, trigger: Trigger) {
+    self.job_store.add(job, trigger);
   }
-}
 
-impl Drop for Scheduler {
-  fn drop(&mut self) {
-    if self
-      .running
-      .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
-      .is_ok()
-    {
-      unsafe {
-        let handle = ManuallyDrop::take(&mut self.scheduler_thread);
-        handle.join().expect("Couldn't join the scheduler thread");
-      }
-    }
+  /// Shuts the [`Scheduler`] down, letting any [`Job`] currently executing run to the end
+  pub fn shutdown(self) {
+    self.scheduler_thread.shutdown();
   }
 }
 
@@ -82,36 +73,55 @@ impl Default for Scheduler {
   }
 }
 
-pub struct JobDetail {
+/// Describes "what" is to be executed
+pub struct Job {
   id: String,
   group: String,
-  target_fn: fn(),
+  target_fn: Box<dyn Fn() + Send + Sync>,
 }
 
-impl JobDetail {
+impl Debug for Job {
+  fn fmt(&self, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    write!(fmt, "Job {}::{}", self.group, self.id)
+  }
+}
+
+impl Job {
+  /// Creates a new [`Job`] that will execute the `target` and can be referenced by [`id`] and
+  /// [`target`], once [scheduled](Scheduler::schedule_job())
+  pub fn with_identity<S: Into<String>>(id: S, group: S, target: impl Fn() + Send + Sync + 'static) -> Self {
+    Self {
+      id: id.into(),
+      group: group.into(),
+      target_fn: Box::new(target),
+    }
+  }
+
+  /// Accessor to the [`Job`]'s identity
   pub fn id(&self) -> &str {
     &self.id
   }
 
+  /// Accessor to the [`Job`]'s group
   pub fn group(&self) -> &str {
     &self.group
   }
 
+  /// Execute the [`Job`]'s target
   pub fn execute(&self) {
     (self.target_fn)();
   }
 }
 
-impl JobDetail {
-  pub fn with_identity<S: Into<String>>(id: S, group: S, target: fn()) -> Self {
-    Self {
-      id: id.into(),
-      group: group.into(),
-      target_fn: target,
-    }
+impl PartialEq for Job {
+  fn eq(&self, other: &Self) -> bool {
+    self.id.eq(&other.id) && self.group.eq(&other.group)
   }
 }
 
+/// Describes the schedule to use when [scheduling](Scheduler::schedule_job()) [`Job`]s with a
+/// [`Scheduler`]
+#[derive(Debug, PartialEq)]
 pub struct Trigger {
   id: String,
   group: String,
@@ -120,6 +130,8 @@ pub struct Trigger {
 }
 
 impl Trigger {
+  /// Creates a new [`Trigger`] that describes a schedule and can be referenced by [`id`] and
+  /// [`target`], once used to [schedule](Scheduler::schedule_job()) a [`Job`]
   pub fn with_identity<S: Into<String>>(id: S, group: S) -> Self {
     Self {
       id: id.into(),
@@ -128,6 +140,7 @@ impl Trigger {
     }
   }
 
+  /// Sets the `start_time` at which the schedule the [`Trigger`] is to start
   pub fn start_at(self, start_time: SystemTime) -> Self {
     Self {
       id: self.id,
@@ -135,77 +148,49 @@ impl Trigger {
       start_time,
     }
   }
-}
 
-struct JobStore {
-  signal: Arc<Condvar>,
-  #[allow(dead_code)]
-  data: Arc<Mutex<BTreeSet<String>>>,
-}
-
-impl JobStore {
-  fn new() -> Self {
-    Self {
-      signal: Arc::new(Default::default()),
-      data: Arc::new(Mutex::new(Default::default())),
-    }
-  }
-
-  fn next_job(&self) -> Option<JobDetail> {
-    None
-  }
-
-  fn signal(&self) {
-    self.signal.notify_one()
-  }
-
-  fn next_fire(&self) -> Option<Duration> {
-    Some(Duration::from_millis(1))
-  }
-}
-
-impl Default for JobStore {
-  fn default() -> Self {
-    JobStore::new()
+  pub fn next_fire(&self) -> &SystemTime {
+    &self.start_time
   }
 }
 
 #[cfg(test)]
 mod tests {
-  use crate::{JobDetail, Scheduler, Trigger};
+  use crate::{Job, Scheduler, Trigger};
   use std::thread;
   use std::time::{Duration, SystemTime};
 
+  const JOB_ID: &str = "job1";
+
   #[test]
-  #[ignore]
   fn test_basic_api() {
     // First we must get a reference to a scheduler
     let mut sched = Scheduler::new();
 
-    // computer a time that is a second from now
-    let run_time = SystemTime::now() + Duration::from_secs(1);
+    // computer a time that is 600 ms from now
+    let run_time = SystemTime::now() + Duration::from_millis(600);
 
     println!("------- Scheduling Job  -------------------");
 
-    // define the job and tie it to our HelloJob class
-    let job_id = "job1";
-    let job = JobDetail::with_identity(job_id, "group1", || println!("Hello world!"));
+    // define the job and tie it to a closure
+    let job = Job::with_identity(JOB_ID, "group1", || println!("Hello, world from {JOB_ID}!"));
 
-    // Trigger the job to run on the next round minute
+    // Trigger the job to run
     let trigger = Trigger::with_identity("trigger1", "group1").start_at(run_time);
 
     // Tell quartz to schedule the job using our trigger
     sched.schedule_job(job, trigger);
-    println!("{job_id} will run at: {run_time:?}");
+    println!("{JOB_ID} will run at: {run_time:?}");
 
     // wait long enough so that the scheduler as an opportunity to
     // run the job!
-    println!("------- Waiting 65 seconds... -------------");
-    // wait 2 seconds to show job
-    thread::sleep(Duration::from_secs(2));
+    println!("------- Waiting 1 second... -------------");
+    // wait 1 seconds to show job
+    thread::sleep(Duration::from_secs(1));
     // executing...
 
     // shut down the scheduler
     println!("------- Shutting Down ---------------------");
+    sched.shutdown();
   }
 }
