@@ -14,6 +14,8 @@ To see the roadmap ahead in details, see the [milestones on Github](https://gith
 ## Usage example
 
 ```rust
+const JOB_ID: &str = "job1";
+
 let mut sched = Scheduler::new();
 
 // computer a time that is 600 ms from now
