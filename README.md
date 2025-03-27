@@ -7,9 +7,41 @@ Port of the original [Quartz Scheduler](https://www.quartz-scheduler.org/) from
 
 All very much still work in progress... 
 
-`v0.0.z` are to be considered experimental towards the first "beta", i.e. `v0.1.0`
+`v0.0.z` are to be considered experimental towards the first "beta", i.e. `v0.1.0`.
 
 To see the roadmap ahead in details, see the [milestones on Github](https://github.com/alexsnaps/quartz-rs/milestones)
+
+## Usage example
+
+```rust
+let mut sched = Scheduler::new();
+
+// computer a time that is 600 ms from now
+let run_time = SystemTime::now() + Duration::from_millis(600);
+
+println!("------- Scheduling Job  -------------------");
+
+// define the job and tie it to a closure
+let job = Job::with_identity(JOB_ID, "group1", || println!("Hello, world from {JOB_ID}!"));
+
+// Trigger the job to run
+let trigger = Trigger::with_identity("trigger1", "group1").start_at(run_time);
+
+// Tell quartz to schedule the job using our trigger
+sched.schedule_job(job, trigger);
+println!("{JOB_ID} will run at: {run_time:?}");
+
+// wait long enough so that the scheduler as an opportunity to
+// run the job!
+println!("------- Waiting 1 second... -------------");
+// wait 1 seconds to show job
+thread::sleep(Duration::from_secs(1));
+// executing...
+
+// shut down the scheduler
+println!("------- Shutting Down ---------------------");
+sched.shutdown();
+```
 
 ## About
 
