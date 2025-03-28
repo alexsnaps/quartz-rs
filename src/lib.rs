@@ -35,7 +35,7 @@ use crate::threading::SchedulerThread;
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 /// Entry point in Quartz, which also controls the lifecycle of the necessary resources.
 pub struct Scheduler {
@@ -125,32 +125,100 @@ impl PartialEq for Job {
 pub struct Trigger {
   id: String,
   group: String,
-  #[allow(dead_code)]
   start_time: Option<SystemTime>,
+  end_time: Option<SystemTime>,
+  interval: Option<Duration>,
+  repeat_count: Option<u32>,
 }
 
 impl Trigger {
   /// Creates a new [`Trigger`] that describes a schedule and can be referenced by `id` and
-  /// `target`, once used to [schedule](Scheduler::schedule_job()) a [`Job`]
+  /// `group`, and is used to [schedule](Scheduler::schedule_job()) a [`Job`].
   pub fn with_identity<S: Into<String>>(id: S, group: S) -> Self {
     Self {
       id: id.into(),
       group: group.into(),
       start_time: None,
+      end_time: None,
+      interval: None,
+      repeat_count: None,
     }
   }
 
-  /// Sets the `start_time` at which the schedule the [`Trigger`] is to start
+  /// Configures the [Trigger] to start execution at the specified `start_time`.
+  ///
+  /// # Arguments
+  ///
+  /// * `start_time` - A `SystemTime` value representing when the schedule should begin execution.
+  ///
+  /// # Returns
+  ///
+  /// Returns a new `Trigger` instance with the `start_time` configured.
   pub fn start_at(self, start_time: SystemTime) -> Self {
     Self {
-      id: self.id,
-      group: self.group,
       start_time: Some(start_time),
+      ..self
     }
   }
 
-  pub fn next_fire(&self) -> &SystemTime {
-    self.start_time.as_ref().unwrap_or_else(|| &SystemTime::now())
+  /// Sets the `end_time` at which the schedule [Trigger] is to stop.
+  ///
+  /// # Arguments
+  ///
+  /// * `end_time` - A `SystemTime` value representing when the schedule should end execution.
+  ///
+  /// # Returns
+  ///
+  /// Returns a new `Trigger` instance with the `end_time` configured.
+  pub fn end_at(self, end_time: SystemTime) -> Self {
+    Self {
+      end_time: Some(end_time),
+      ..self
+    }
+  }
+
+  /// Configures the [Trigger] to execute repeatedly at the given interval.
+  ///
+  /// # Arguments
+  ///
+  /// * `interval` - A `Duration` representing the interval at which the trigger should repeat execution.
+  ///
+  /// # Returns
+  ///
+  /// Returns a new `Trigger` instance with the `interval` configured.
+  pub fn every(self, interval: Duration) -> Self {
+    Self {
+      interval: Some(interval),
+      ..self
+    }
+  }
+
+  /// Sets the number of times the [Trigger] should repeat execution.
+  ///
+  /// # Arguments
+  ///
+  /// * `repeat_count` - A `u32` value specifying the number of repetitions for the schedule.
+  ///
+  /// # Returns
+  ///
+  /// Returns a new `Trigger` instance with the `repeat_count` configured.
+  pub fn repeat_count(self, repeat_count: u32) -> Self {
+    Self {
+      repeat_count: Some(repeat_count),
+      ..self
+    }
+  }
+
+  /// Returns the next scheduled fire time for the [Trigger].
+  ///
+  /// The next fire time is determined based on the `start_time` of the `Trigger`. If no `start_time`
+  /// is specified, it defaults to `SystemTime::now`.
+  ///
+  /// # Returns
+  ///
+  /// A `SystemTime` value representing when the [Trigger] is scheduled to fire next.
+  pub fn next_fire(&self) -> SystemTime {
+    self.start_time.unwrap_or_else(SystemTime::now)
   }
 }
 

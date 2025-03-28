@@ -91,6 +91,6 @@ impl PartialOrd<Self> for JobDetails {
 
 impl Ord for JobDetails {
   fn cmp(&self, other: &Self) -> Ordering {
-    self.trigger.next_fire().cmp(other.trigger.next_fire())
+    self.trigger.next_fire().cmp(&other.trigger.next_fire())
   }
 }
