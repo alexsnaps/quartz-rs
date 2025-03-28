@@ -126,7 +126,7 @@ pub struct Trigger {
   id: String,
   group: String,
   #[allow(dead_code)]
-  start_time: SystemTime,
+  start_time: Option<SystemTime>,
 }
 
 impl Trigger {
@@ -136,7 +136,7 @@ impl Trigger {
     Self {
       id: id.into(),
       group: group.into(),
-      start_time: SystemTime::now(),
+      start_time: None,
     }
   }
 
@@ -145,12 +145,12 @@ impl Trigger {
     Self {
       id: self.id,
       group: self.group,
-      start_time,
+      start_time: Some(start_time),
     }
   }
 
   pub fn next_fire(&self) -> &SystemTime {
-    &self.start_time
+    self.start_time.as_ref().unwrap_or_else(|| &SystemTime::now())
   }
 }
 
