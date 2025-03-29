@@ -45,7 +45,7 @@
 //! // Create a trigger with an identifier and a group
 //! // to execute immediately and repeat twice, every 200ms
 //! let trigger = Trigger::with_identity("basic_trigger", "default_group")
-//!     .repeat_count(2)
+//!     .repeat(2)
 //!     .every(std::time::Duration::from_millis(200));
 //!
 //! // Schedule the job using the trigger
@@ -316,14 +316,14 @@ impl Trigger {
   ///
   /// # Arguments
   ///
-  /// * `repeat_count` - A `u32` value specifying the number of repetitions for the schedule.
+  /// * `count` - A `u32` value specifying the number of repetitions for the schedule.
   ///
   /// # Returns
   ///
-  /// Returns a new `Trigger` instance with the `repeat_count` configured.
-  pub fn repeat_count(self, repeat_count: u32) -> Self {
+  /// Returns a new `Trigger` instance with the `count` configured.
+  pub fn repeat(self, count: u32) -> Self {
     Self {
-      repeat_count: Some(repeat_count),
+      repeat_count: Some(count),
       ..self
     }
   }
@@ -363,7 +363,10 @@ mod tests {
     let job = Job::with_identity(JOB_ID, "group1", || println!("Hello, world from {JOB_ID}!"));
 
     // Trigger the job to run
-    let trigger = Trigger::with_identity("trigger1", "group1").start_at(run_time);
+    let trigger = Trigger::with_identity("trigger1", "group1")
+      .start_at(run_time)
+      .repeat(2)
+      .every(Duration::from_millis(100));
 
     // Tell quartz to schedule the job using our trigger
     sched.schedule_job(job, trigger);
