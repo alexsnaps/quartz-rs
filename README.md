@@ -22,7 +22,7 @@ use quartz::{Job, Scheduler, Trigger};
 fn main() {
   const JOB_ID: &str = "job1";
 
-  let mut sched = Scheduler::new();
+  let sched = Scheduler::new();
 
   // computer a time that is 600 ms from now
   let run_time = SystemTime::now() + Duration::from_millis(600);

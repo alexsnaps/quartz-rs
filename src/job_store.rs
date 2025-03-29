@@ -95,8 +95,9 @@ impl TriggerWrapper {
       last_triggered: _,
     } = self;
 
+    let now = SystemTime::now();
     if let Some(end) = trigger.end_time {
-      if end <= SystemTime::now() + trigger.interval.unwrap_or_default() {
+      if end <= now + trigger.interval.unwrap_or_default() {
         return (job, None);
       }
     }
@@ -108,7 +109,7 @@ impl TriggerWrapper {
           trigger,
           job: job.clone(),
           repeated: repeated + 1,
-          last_triggered: Some(SystemTime::now()),
+          last_triggered: Some(now),
         };
         return (job, Some(next));
       }
