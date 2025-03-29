@@ -36,7 +36,14 @@ impl JobStore {
   }
 
   pub fn next_job(&self) -> Option<Arc<Job>> {
-    self.data.lock().unwrap().pop_first().map(|details| details.job.clone())
+    let mut guard = self.data.lock().unwrap();
+    guard.pop_first().map(|wrapper| {
+      let (job, next) = wrapper.compute_next();
+      if let Some(next) = next {
+        guard.insert(next);
+      }
+      job
+    })
   }
 
   pub fn add(&self, job: Job, trigger: Trigger) {
@@ -47,8 +54,7 @@ impl JobStore {
 
   pub fn next_fire(&self) -> Option<Duration> {
     self.data.lock().unwrap().first().map(|j| {
-      j.trigger
-        .next_fire()
+      j.next_fire()
         .duration_since(SystemTime::now())
         .unwrap_or(Duration::ZERO)
     })
@@ -66,13 +72,58 @@ impl From<(Job, Trigger)> for TriggerWrapper {
     Self {
       trigger: trigger.into(),
       job: job.into(),
+      repeated: 0,
+      last_triggered: None,
     }
   }
 }
 
+#[derive(Debug)]
 struct TriggerWrapper {
   trigger: Arc<Trigger>,
   job: Arc<Job>,
+  repeated: u32,
+  last_triggered: Option<SystemTime>,
+}
+
+impl TriggerWrapper {
+  fn compute_next(self) -> (Arc<Job>, Option<Self>) {
+    let TriggerWrapper {
+      trigger,
+      job,
+      repeated,
+      last_triggered: _,
+    } = self;
+
+    if let Some(end) = trigger.end_time {
+      if end <= SystemTime::now() + trigger.interval.unwrap_or_default() {
+        return (job, None);
+      }
+    }
+
+    if let Some(repeat_count) = trigger.repeat_count {
+      if repeated < repeat_count - 1 {
+        // we need to repeat
+        let next = TriggerWrapper {
+          trigger,
+          job: job.clone(),
+          repeated: repeated + 1,
+          last_triggered: Some(SystemTime::now()),
+        };
+        return (job, Some(next));
+      }
+    }
+    (job, None)
+  }
+
+  fn next_fire(&self) -> SystemTime {
+    if let Some(last_triggered) = self.last_triggered {
+      if let Some(interval) = self.trigger.interval {
+        return last_triggered + interval;
+      }
+    }
+    self.trigger.next_fire()
+  }
 }
 
 impl Eq for TriggerWrapper {}
