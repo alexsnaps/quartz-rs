@@ -14,35 +14,45 @@ To see the roadmap ahead in details, see the [milestones on Github](https://gith
 ## Usage example
 
 ```rust
-const JOB_ID: &str = "job1";
+use std::thread;
+use std::time::{Duration, SystemTime};
 
-let mut sched = Scheduler::new();
+use quartz::{Job, Scheduler, Trigger};
 
-// computer a time that is 600 ms from now
-let run_time = SystemTime::now() + Duration::from_millis(600);
+fn main() {
+  const JOB_ID: &str = "job1";
 
-println!("------- Scheduling Job  -------------------");
+  let mut sched = Scheduler::new();
 
-// define the job and tie it to a closure
-let job = Job::with_identity(JOB_ID, "group1", || println!("Hello, world from {JOB_ID}!"));
+  // computer a time that is 600 ms from now
+  let run_time = SystemTime::now() + Duration::from_millis(600);
 
-// Trigger the job to run
-let trigger = Trigger::with_identity("trigger1", "group1").start_at(run_time);
+  println!("------- Scheduling Job  -------------------");
 
-// Tell quartz to schedule the job using our trigger
-sched.schedule_job(job, trigger);
-println!("{JOB_ID} will run at: {run_time:?}");
+  // define the job and tie it to a closure
+  let job = Job::with_identity(JOB_ID, "group1", || println!("Hello, world from {JOB_ID}!"));
 
-// wait long enough so that the scheduler as an opportunity to
-// run the job!
-println!("------- Waiting 1 second... -------------");
-// wait 1 seconds to show job
-thread::sleep(Duration::from_secs(1));
-// executing...
+  // Trigger the job to run
+  let trigger = Trigger::with_identity("trigger1", "group1")
+    .start_at(run_time)
+    .repeat(2)
+    .every(Duration::from_millis(100));
 
-// shut down the scheduler
-println!("------- Shutting Down ---------------------");
-sched.shutdown();
+  // Tell quartz to schedule the job using our trigger
+  sched.schedule_job(job, trigger);
+  println!("{JOB_ID} will run at: {run_time:?}");
+
+  // wait long enough so that the scheduler as an opportunity to
+  // run the job!
+  println!("------- Waiting 1 second... -------------");
+  // wait 1 seconds to show job
+  thread::sleep(Duration::from_secs(1));
+  // executing...
+
+  // shut down the scheduler
+  println!("------- Shutting Down ---------------------");
+  sched.shutdown();
+}
 ```
 
 ## About
