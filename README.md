@@ -15,7 +15,7 @@ To see the roadmap ahead in details, see the [milestones on Github](https://gith
 
 ```rust
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use quartz::{Job, Scheduler, Trigger};
 
@@ -33,7 +33,10 @@ fn main() {
   let job = Job::with_identity(JOB_ID, "group1", || println!("Hello, world from {JOB_ID}!"));
 
   // Trigger the job to run
-  let trigger = Trigger::with_identity("trigger1", "group1").start_at(run_time);
+  let trigger = Trigger::with_identity("trigger1", "group1")
+    .start_at(run_time)
+    .repeat(2)
+    .every(Duration::from_millis(100));
 
   // Tell quartz to schedule the job using our trigger
   sched.schedule_job(job, trigger);
