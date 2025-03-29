@@ -25,6 +25,40 @@
 //! A [`Scheduler`] runs off a main scheduler thread that will dispatch [`Job`]s for execution to workers
 //! from a thread pool, which is configurable in size. The dispatch occurs based off a [`Trigger`]
 //! defining the actual schedule for a [`Job`] to fire.
+//! ## Examples
+//!
+//! Basic usage example showing how to set up a simple job and trigger within the Quartz scheduler:
+//!
+//! ```rust
+//! use quartz::{Scheduler, Job, Trigger};
+//!
+//! // Create a new scheduler instance
+//! let mut scheduler = Scheduler::new();
+//!
+//! // Define a job with an `id`, `group` and a function to execute
+//! let job = Job::with_identity(
+//!     "basic_job",
+//!     "default_group",
+//!     || println!("Executing the basic job!")
+//! );
+//!
+//! // Create a trigger with an identifier and a group
+//! // to execute immediately and repeat twice, every 200ms
+//! let trigger = Trigger::with_identity("basic_trigger", "default_group")
+//!     .repeat_count(2)
+//!     .every(std::time::Duration::from_millis(200));
+//!
+//! // Schedule the job using the trigger
+//! scheduler.schedule_job(job, trigger);
+//!
+//! // Note: this example assumes the scheduler implementation is handling
+//! // job executions based on its triggers appropriately in the background.
+//! // Give it some time to execute
+//! std::thread::sleep(std::time::Duration::from_secs(1));
+//!
+//! // finally shutting the scheduler down
+//! scheduler.shutdown();
+//! ```
 
 mod job_store;
 mod threading;
@@ -38,6 +72,29 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 /// Entry point in Quartz, which also controls the lifecycle of the necessary resources.
+/// The `Scheduler` is the entry point of the Quartz Scheduler, responsible for managing the
+/// lifecycle of scheduling resources and orchestrating the execution of tasks.
+///
+/// This struct coordinates a [`JobStore`], which handles storing and retrieving
+/// [`Job`]s and [`Trigger`]s, as well as the [`SchedulerThread`], which
+/// dispatches those [`Job`]s for execution.
+///
+/// # Examples
+///
+/// ```rust
+/// use quartz::{Scheduler, Job, Trigger};
+///
+/// let mut scheduler = Scheduler::new();
+///
+/// let job = Job::with_identity(
+///     "example_job",
+///     "example_group",
+///     || println!("Executing job!")
+/// );
+///
+/// let trigger = Trigger::with_identity("trigger_id", "example_group");
+/// scheduler.schedule_job(job, trigger);
+/// ```
 pub struct Scheduler {
   job_store: Arc<JobStore>,
   scheduler_thread: SchedulerThread,
@@ -46,6 +103,10 @@ pub struct Scheduler {
 impl Scheduler {
   /// Creates a new [`Scheduler`], initializing the storage for [`Job`]s, starts the scheduler
   /// thread and initializes the worker thread pool.
+  ///
+  /// # Returns
+  ///
+  /// A new instance of [`Scheduler`].
   pub fn new() -> Self {
     let job_store = Arc::new(JobStore::new());
     let scheduler_thread = SchedulerThread::new(NonZeroUsize::new(2).unwrap(), Arc::clone(&job_store));
@@ -57,11 +118,42 @@ impl Scheduler {
   }
 
   /// Schedule a [`Job`], triggered according to the schedule described by the [`Trigger`]
+  ///
+  /// # Arguments
+  ///
+  /// * `job` - A [`Job`] instance describing the task to be executed.
+  /// * `trigger` - A [`Trigger`] instance that specifies the schedule for the job.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use quartz::{Scheduler, Job, Trigger};
+  ///
+  /// let mut scheduler = Scheduler::new();
+  /// let job = Job::with_identity(
+  ///     "example_job",
+  ///     "example_group",
+  ///     || println!("This job is running!")
+  /// );
+  ///
+  /// let trigger = Trigger::with_identity("trigger_id", "example_group");
+  /// scheduler.schedule_job(job, trigger);
+  /// ```
   pub fn schedule_job(&mut self, job: Job, trigger: Trigger) {
     self.job_store.add(job, trigger);
   }
 
   /// Shuts the [`Scheduler`] down, letting any [`Job`] currently executing run to the end
+  ///
+  /// Initiates the shutdown of the [`Scheduler`].
+  ///
+  /// This method terminates the scheduler's thread and prevents any
+  /// new [`Job`]s from being scheduled. Any currently executing
+  /// [`Job`]s will be allowed to complete before the shutdown
+  /// process finishes.
+  ///
+  /// After calling this method, the [`Scheduler`] instance should
+  /// no longer be used.
   pub fn shutdown(self) {
     self.scheduler_thread.shutdown();
   }
@@ -74,6 +166,29 @@ impl Default for Scheduler {
 }
 
 /// Describes "what" is to be executed
+///
+/// A [`Job`] represents a unit of work that can be executed and scheduled by the [`Scheduler`].
+/// Each [`Job`] has a unique `id` and belongs to a specific `group`.
+/// The actual execution of the job is defined by the `target_fn`, which is a function to execute.
+///
+/// # Fields
+/// - `id`: A unique identifier for the job.
+/// - `group`: The group to which the job belongs, used for categorization.
+/// - `target_fn`: The function to execute when the job is triggered.
+///
+/// # Examples
+/// ```rust
+/// use quartz::{Job, Scheduler, Trigger};
+///
+/// let mut scheduler = Scheduler::new();
+/// let job = Job::with_identity(
+///     "example_job",
+///     "example_group",
+///     || println!("This job is executing!")
+/// );
+///
+/// scheduler.schedule_job(job, Trigger::with_identity("trigger_id", "example_group"));
+/// ```
 pub struct Job {
   id: String,
   group: String,
@@ -98,16 +213,24 @@ impl Job {
   }
 
   /// Accessor to the [`Job`]'s identity
+  ///
+  /// # Returns
+  ///
+  /// The id of the [`Job`].
   pub fn id(&self) -> &str {
     &self.id
   }
 
-  /// Accessor to the [`Job`]'s group
+  /// Accessor to the [`Job`]'s group.
+  ///
+  /// # Returns
+  ///
+  /// The group of the [`Job`].
   pub fn group(&self) -> &str {
     &self.group
   }
 
-  /// Execute the [`Job`]'s target
+  /// Executes the [`Job`]'s target function.
   pub fn execute(&self) {
     (self.target_fn)();
   }
