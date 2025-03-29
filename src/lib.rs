@@ -33,7 +33,7 @@
 //! use quartz::{Scheduler, Job, Trigger};
 //!
 //! // Create a new scheduler instance
-//! let mut scheduler = Scheduler::new();
+//! let scheduler = Scheduler::new();
 //!
 //! // Define a job with an `id`, `group` and a function to execute
 //! let job = Job::with_identity(
@@ -80,7 +80,7 @@ use std::time::{Duration, SystemTime};
 /// ```rust
 /// use quartz::{Scheduler, Job, Trigger};
 ///
-/// let mut scheduler = Scheduler::new();
+/// let scheduler = Scheduler::new();
 ///
 /// let job = Job::with_identity(
 ///     "example_job",
@@ -125,7 +125,7 @@ impl Scheduler {
   /// ```rust
   /// use quartz::{Scheduler, Job, Trigger};
   ///
-  /// let mut scheduler = Scheduler::new();
+  /// let scheduler = Scheduler::new();
   /// let job = Job::with_identity(
   ///     "example_job",
   ///     "example_group",
@@ -135,7 +135,7 @@ impl Scheduler {
   /// let trigger = Trigger::with_identity("trigger_id", "example_group");
   /// scheduler.schedule_job(job, trigger);
   /// ```
-  pub fn schedule_job(&mut self, job: Job, trigger: Trigger) {
+  pub fn schedule_job(&self, job: Job, trigger: Trigger) {
     self.job_store.add(job, trigger);
   }
 
@@ -176,7 +176,7 @@ impl Default for Scheduler {
 /// ```rust
 /// use quartz::{Job, Scheduler, Trigger};
 ///
-/// let mut scheduler = Scheduler::new();
+/// let scheduler = Scheduler::new();
 /// let job = Job::with_identity(
 ///     "example_job",
 ///     "example_group",
@@ -352,7 +352,7 @@ mod tests {
   #[test]
   fn test_basic_api() {
     // First we must get a reference to a scheduler
-    let mut sched = Scheduler::new();
+    let sched = Scheduler::new();
 
     // computer a time that is 600 ms from now
     let run_time = SystemTime::now() + Duration::from_millis(600);
