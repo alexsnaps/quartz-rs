@@ -7,5 +7,7 @@ license = "Apache-2.0"
 homepage = "https://github.com/alexsnaps/quartz-rs"
 repository = "https://github.com/alexsnaps/quartz-rs"
 description = "Port of the original Java Quartz Scheduler to Rust"
+keywords = ["scheduler", "scheduling"]
+categories = ["asynchronous", "concurrency", "web-programming"]
 
 [dependencies]
