@@ -16,7 +16,7 @@
 
 //! # Quartz Scheduler
 //!
-//! This is a port of the original [Quartz Scheduler](https://www.quartz-scheduler.org/) written in
+//! This is a Rust port of the [Quartz Scheduler](https://www.quartz-scheduler.org/) originally written in
 //! Java. Quartz can be integrated within pretty much any Rust application that targets a
 //! multithreaded architecture.
 //!
@@ -74,10 +74,6 @@ use std::time::{Duration, SystemTime};
 /// Entry point in Quartz, which also controls the lifecycle of the necessary resources.
 /// The `Scheduler` is the entry point of the Quartz Scheduler, responsible for managing the
 /// lifecycle of scheduling resources and orchestrating the execution of tasks.
-///
-/// This struct coordinates a [`JobStore`], which handles storing and retrieving
-/// [`Job`]s and [`Trigger`]s, as well as the [`SchedulerThread`], which
-/// dispatches those [`Job`]s for execution.
 ///
 /// # Examples
 ///
