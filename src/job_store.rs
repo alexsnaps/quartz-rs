@@ -24,7 +24,7 @@ use super::{Job, Trigger};
 pub struct JobStore {
   signal: Arc<Condvar>,
   #[allow(dead_code)]
-  data: Arc<Mutex<BTreeSet<JobDetails>>>,
+  data: Arc<Mutex<BTreeSet<TriggerWrapper>>>,
 }
 
 impl JobStore {
@@ -61,35 +61,35 @@ impl Default for JobStore {
   }
 }
 
-impl From<(Job, Trigger)> for JobDetails {
+impl From<(Job, Trigger)> for TriggerWrapper {
   fn from((job, trigger): (Job, Trigger)) -> Self {
-    JobDetails {
+    Self {
       trigger: trigger.into(),
       job: job.into(),
     }
   }
 }
 
-struct JobDetails {
+struct TriggerWrapper {
   trigger: Arc<Trigger>,
   job: Arc<Job>,
 }
 
-impl Eq for JobDetails {}
+impl Eq for TriggerWrapper {}
 
-impl PartialEq<Self> for JobDetails {
+impl PartialEq<Self> for TriggerWrapper {
   fn eq(&self, other: &Self) -> bool {
     self.job.eq(&other.job) && self.trigger.eq(&other.trigger)
   }
 }
 
-impl PartialOrd<Self> for JobDetails {
+impl PartialOrd<Self> for TriggerWrapper {
   fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
     Some(self.cmp(other))
   }
 }
 
-impl Ord for JobDetails {
+impl Ord for TriggerWrapper {
   fn cmp(&self, other: &Self) -> Ordering {
     self.trigger.next_fire().cmp(&other.trigger.next_fire())
   }
