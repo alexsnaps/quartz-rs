@@ -28,7 +28,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 use thread_pool::WorkerPool;
 
-const DEFAULT_WAIT_NO_WORK: Duration = Duration::from_secs(1);
+const DEFAULT_WAIT_NO_WORK: Duration = Duration::from_secs(2);
 
 pub(super) struct SchedulerThread {
   halted: Arc<AtomicBool>,
@@ -51,11 +51,7 @@ impl SchedulerThread {
         .name("Quartz Scheduler Thread".to_string())
         .spawn(move || {
           while !halted.load(Acquire) {
-            let next_fire = store.next_fire().unwrap_or(DEFAULT_WAIT_NO_WORK);
-            if !next_fire.is_zero() {
-              thread::sleep(next_fire);
-            }
-            if let Some(job) = store.next_job() {
+            if let Some(job) = store.next_job(DEFAULT_WAIT_NO_WORK) {
               #[allow(clippy::unit_arg)]
               if let Err(_task) = workers.submit(job) {
                 // FIXME: no worker available! reschedule task
@@ -76,6 +72,7 @@ impl SchedulerThread {
 
   pub fn shutdown(self) {
     self.halted.store(true, std::sync::atomic::Ordering::Release);
+    self.store.shutdown();
     self.handle.join().expect("Scheduler thread panicked");
     Arc::try_unwrap(self.workers)
       .expect("worker pool is still being used!")

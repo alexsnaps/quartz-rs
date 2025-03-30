@@ -35,15 +35,31 @@ impl JobStore {
     }
   }
 
-  pub fn next_job(&self) -> Option<Arc<Job>> {
-    let mut guard = self.data.lock().unwrap();
-    guard.pop_first().map(|wrapper| {
-      let (job, next) = wrapper.compute_next();
-      if let Some(next) = next {
-        guard.insert(next);
-      }
-      job
-    })
+  pub fn next_job(&self, timeout: Duration) -> Option<Arc<Job>> {
+    let guard = self.data.lock().unwrap();
+    let timeout = guard
+      .first()
+      .map(|wrapper| {
+        wrapper
+          .next_fire()
+          .duration_since(SystemTime::now())
+          .unwrap_or_default()
+      })
+      .unwrap_or(timeout)
+      .min(timeout);
+
+    let (mut guard, _) = self.signal.wait_timeout(guard, timeout).unwrap();
+    if !guard.is_empty() && guard.first().unwrap().next_fire() <= SystemTime::now() + Duration::from_micros(10) {
+      guard.pop_first().map(|wrapper| {
+        let (job, next) = wrapper.compute_next();
+        if let Some(next) = next {
+          guard.insert(next);
+        }
+        job
+      })
+    } else {
+      None
+    }
   }
 
   pub fn add(&self, job: Job, trigger: Trigger) {
@@ -52,12 +68,8 @@ impl JobStore {
     self.signal.notify_one()
   }
 
-  pub fn next_fire(&self) -> Option<Duration> {
-    self.data.lock().unwrap().first().map(|j| {
-      j.next_fire()
-        .duration_since(SystemTime::now())
-        .unwrap_or(Duration::ZERO)
-    })
+  pub fn shutdown(&self) {
+    self.signal.notify_one();
   }
 }
 
