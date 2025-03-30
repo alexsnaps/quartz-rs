@@ -1,3 +1,8 @@
+
+[![Downloads](https://img.shields.io/crates/v/quartz.svg)](https://crates.io/crates/quartz)
+[![Docs](https://docs.rs/quartz/badge.svg)](https://docs.rs/quartz/latest/quartz/)
+[![CI](https://github.com/alexsnaps/quartz-rs/workflows/Rust/badge.svg)](https://github.com/alexsnaps/quartz-rs/actions)
+
 # Quartz Scheduler for Rust
 
 Port of the original [Quartz Scheduler](https://www.quartz-scheduler.org/) from 
