@@ -157,7 +157,7 @@ impl<T: Executable + Debug> Worker<T> {
     let l = self.task.lock().unwrap();
     self.busy.store(true, Ordering::Release);
     self.cvar.notify_one();
-    std::mem::drop(l);
+    drop(l);
   }
 }
 
