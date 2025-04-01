@@ -30,6 +30,7 @@ pub trait Executable {
 pub(super) struct WorkerPool<T: Debug + Executable> {
   running: Arc<AtomicBool>,
   workers: Vec<(Arc<Worker<T>>, JoinHandle<()>)>,
+  sig: (Mutex<()>, Arc<Condvar>),
 }
 
 #[derive(Debug)]
@@ -45,23 +46,26 @@ impl<T: Executable + Debug + Send + 'static> WorkerPool<T> {
 
     let running = Arc::new(AtomicBool::new(true));
     let mut workers = Vec::with_capacity(size);
+    let sig: (Mutex<()>, Arc<Condvar>) = Default::default();
 
     for i in 0..size {
       let running = running.clone();
       let worker: Arc<Worker<T>> = Arc::default();
       let w = worker.clone();
+      let sig = sig.1.clone();
       let jh = thread::Builder::new()
         .name(format!("Quartz Worker #{i}"))
         .spawn(move || {
           while running.load(Ordering::Acquire) {
             worker.do_work();
+            sig.notify_one();
           }
         })
         .unwrap();
       workers.push((w, jh));
     }
 
-    Self { running, workers }
+    Self { running, workers, sig }
   }
 
   pub fn submit(&self, task: T) -> Result<(), T> {
@@ -76,9 +80,15 @@ impl<T: Executable + Debug + Send + 'static> WorkerPool<T> {
     }
   }
 
-  #[allow(dead_code)]
-  pub fn available_workers(&self) -> usize {
+  fn available_workers(&self) -> usize {
     self.workers.iter().filter(|w| !w.0.busy()).count()
+  }
+
+  pub fn wait_for_worker(&self) {
+    let (m, cvar) = &self.sig;
+    let guard = m.lock().unwrap();
+    drop(cvar.wait_while(guard, |_| self.available_workers() == 0).unwrap());
+    cvar.notify_one();
   }
 
   pub fn shutdown(mut self) {
@@ -173,7 +183,9 @@ mod tests {
   use std::thread;
 
   impl Executable for () {
-    fn exec(&self) {}
+    fn exec(&self) {
+      thread::sleep(std::time::Duration::from_millis(30));
+    }
   }
 
   #[test]
@@ -186,6 +198,11 @@ mod tests {
   fn available_workers() {
     let pool = WorkerPool::<()>::new(NonZeroUsize::new(2).unwrap());
     assert_eq!(pool.available_workers(), 2);
+    pool.submit(()).unwrap();
+    pool.submit(()).unwrap();
+    assert_eq!(pool.available_workers(), 0);
+    pool.wait_for_worker();
+    pool.submit(()).unwrap();
     pool.shutdown();
   }
 
