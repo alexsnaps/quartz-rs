@@ -52,10 +52,10 @@ impl SchedulerThread {
         .spawn(move || {
           while !halted.load(Acquire) {
             if let Some(job) = store.next_job(DEFAULT_WAIT_NO_WORK) {
-              #[allow(clippy::unit_arg)]
-              if let Err(_task) = workers.submit(job) {
-                // FIXME: no worker available! reschedule task
-              }
+              workers.wait_for_worker();
+              workers
+                .submit(job)
+                .expect("We should _always_ have a worker available!");
             }
           }
         })

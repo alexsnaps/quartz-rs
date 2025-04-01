@@ -20,7 +20,7 @@
 //! Java. Quartz can be integrated within pretty much any Rust application that targets a
 //! multithreaded architecture.
 //!
-//! ## Highlevel architecture
+//! ## High level architecture
 //!
 //! A [`Scheduler`] runs off a main scheduler thread that will dispatch [`Job`]s for execution to workers
 //! from a thread pool, which is configurable in size. The dispatch occurs based off a [`Trigger`]
