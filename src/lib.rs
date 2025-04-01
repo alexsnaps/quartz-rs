@@ -23,7 +23,7 @@
 //! ## High level architecture
 //!
 //! A [`Scheduler`] runs off a main scheduler thread that will dispatch [`Job`]s for execution to workers
-//! from a thread pool, which is configurable in size. The dispatch occurs based off a [`Trigger`]
+//! from a thread pool, which is configurable. The dispatch occurs based off a [`Trigger`]
 //! defining the actual schedule for a [`Job`] to fire.
 //! ## Examples
 //!
@@ -96,7 +96,105 @@ pub struct Scheduler {
   scheduler_thread: SchedulerThread,
 }
 
+/// A builder for configuring and constructing a [`Scheduler`] instance.
+///
+/// [`SchedulerBuilder`] provides a fluent API for customizing the behavior and characteristics
+/// of a [`Scheduler`]. For example, you can configure the number of worker threads used by
+/// the scheduler to execute scheduled jobs.
+///
+/// Once the builder is configured as needed, it can be consumed to create a new
+/// [`Scheduler`] instance with the specified configuration.
+///
+/// # Examples
+///
+/// ```rust
+/// use quartz::Scheduler;
+/// use std::num::NonZeroUsize;
+///
+/// // Create a custom scheduler with 4 workers
+/// let scheduler = Scheduler::builder()
+///     .with_workers(NonZeroUsize::new(4).unwrap())
+///     .build();
+/// ```
+pub struct SchedulerBuilder {
+  workers: NonZeroUsize,
+  job_store: JobStore,
+}
+
+impl SchedulerBuilder {
+  /// Configures the number of worker threads for the [`Scheduler`] instance.
+  ///
+  /// # Arguments
+  ///
+  /// * `workers` - A `NonZeroUsize` value indicating the number of workers to run in the thread pool.
+  ///
+  /// # Returns
+  ///
+  /// A new instance of [`SchedulerBuilder`] with the specified number of workers.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use quartz::Scheduler;
+  /// use std::num::NonZeroUsize;
+  ///
+  /// // Create a scheduler builder with a custom number of workers
+  /// let builder = Scheduler::builder().with_workers(NonZeroUsize::new(4).unwrap());
+  /// ```
+  pub fn with_workers(self, workers: NonZeroUsize) -> Self {
+    Self { workers, ..self }
+  }
+
+  /// Consumes the [`SchedulerBuilder`] and creates a new [`Scheduler`] instance.
+  ///
+  /// # Returns
+  ///
+  /// A fully initialized [`Scheduler`] instance. The scheduler will have
+  /// the specified number of worker threads for executing scheduled [`Job`]s.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use quartz::{Scheduler, SchedulerBuilder};
+  /// use std::num::NonZeroUsize;
+  ///
+  /// let scheduler = Scheduler::builder()
+  ///     .with_workers(NonZeroUsize::new(4).unwrap())
+  ///     .build();
+  /// ```
+  pub fn build(self) -> Scheduler {
+    let job_store = Arc::new(self.job_store);
+    Scheduler {
+      job_store: job_store.clone(),
+      scheduler_thread: SchedulerThread::new(self.workers, job_store),
+    }
+  }
+}
+
 impl Scheduler {
+  /// Returns a [`SchedulerBuilder`] instance to configure and build a [`Scheduler`].
+  ///
+  /// This is useful for customizing the [`Scheduler`] instance, such as configuring
+  /// the number of worker threads for job execution.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use quartz::Scheduler;
+  /// use std::num::NonZeroUsize;
+  ///
+  /// // Create a custom scheduler with 4 workers
+  /// let scheduler = Scheduler::builder()
+  ///     .with_workers(NonZeroUsize::new(4).unwrap())
+  ///     .build();
+  /// ```
+  pub fn builder() -> SchedulerBuilder {
+    SchedulerBuilder {
+      workers: NonZeroUsize::new(1).unwrap(),
+      job_store: JobStore::new(),
+    }
+  }
+
   /// Creates a new [`Scheduler`], initializing the storage for [`Job`]s, starts the scheduler
   /// thread and initializes the worker thread pool.
   ///
@@ -351,8 +449,8 @@ mod tests {
 
   #[test]
   fn test_basic_api() {
-    // First we must get a reference to a scheduler
-    let sched = Scheduler::new();
+    // First, we must get a reference to a scheduler
+    let sched = Scheduler::builder().with_workers(1.try_into().unwrap()).build();
 
     // computer a time that is 600 ms from now
     let run_time = SystemTime::now() + Duration::from_millis(600);
