@@ -53,6 +53,9 @@ impl SchedulerThread {
           while !halted.load(Acquire) {
             if let Some(job) = store.next_job(DEFAULT_WAIT_NO_WORK) {
               workers.wait_for_worker();
+              if halted.load(Acquire) {
+                break;
+              }
               workers
                 .submit(job)
                 .expect("We should _always_ have a worker available!");
