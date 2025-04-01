@@ -240,14 +240,6 @@ impl Scheduler {
   /// Shuts the [`Scheduler`] down, letting any [`Job`] currently executing run to the end
   ///
   /// Initiates the shutdown of the [`Scheduler`].
-  ///
-  /// This method terminates the scheduler's thread and prevents any
-  /// new [`Job`]s from being scheduled. Any currently executing
-  /// [`Job`]s will be allowed to complete before the shutdown
-  /// process finishes.
-  ///
-  /// After calling this method, the [`Scheduler`] instance should
-  /// no longer be used.
   pub fn shutdown(self) {
     self.scheduler_thread.shutdown();
   }
